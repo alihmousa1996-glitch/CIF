@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CIF Canada - Work Time Tracker</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  
+  <!-- PDF Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+  
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+    }
+    .fade-in {
+      animation: fadeIn 0.5s;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .day-column {
+      border: 1px solid #e5e7eb;
+      padding: 8px;
+      background: #f9fafb;
+      border-radius: 4px;
+    }
+    .firebase-status {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: bold;
+      z-index: 1000;
+    }
+    .firebase-connected {
+      background: #10b981;
+      color: white;
+    }
+    .firebase-disconnected {
+      background: #ef4444;
+      color: white;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-gray-100 min-h-screen">
+  
+  <!-- Firebase Connection Status -->
+  <div id="firebaseStatus" class="firebase-status firebase-disconnected">
+    🔴 Connecting...
+  </div>
+  
+  <!-- Header -->
+  <header class="bg-blue-900 text-white shadow-lg">
+    <div class="container mx-auto px-4 py-6">
+      <h1 class="text-3xl font-bold text-center">🏢 CIF Canada</h1>
+      <p class="text-center text-blue-200 mt-2">Employee Work Time Tracker (Firebase Cloud Database)</p>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <div class="container mx-auto px-4 py-8">
+    
+    <!-- Admin Login Button -->
+    <div class="text-right mb-4">
+      <button onclick="toggleAdminPanel()" class="bg-green-600 text-white px-6 py-2 rounded-lg shadow hover:bg-green-700">
+        🔐 Admin Panel
+      </button>
+      <button id="logoutBtn" onclick="logout()" class="hidden bg-red-600 text-white px-6 py-2 rounded-lg shadow hover:bg-red-700 ml-2">
+        🚪 Logout
+      </button>
+    </div>
+
+    <!-- Admin Panel (Hidden by default) -->
+    <div id="adminPanel" class="hidden mb-6 bg-white rounded-lg shadow-lg p-6">
+      <h2 class="text-2xl font-bold mb-6 text-center">📝 Add Weekly Work Entry</h2>
+      
+      <!-- Employee Selection -->
+      <div class="mb-6">
+        <label class="block text-lg font-bold mb-3">Select Employee:</label>
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <button onclick="selectEmployee('Ali Hojeij')" class="employee-btn p-4 border-2 rounded-lg hover:bg-blue-50 hover:border-blue-500 transition" data-employee="Ali Hojeij">
+            👤 Ali Hojeij
+          </button>
+          <button onclick="selectEmployee('Layla')" class="employee-btn p-4 border-2 rounded-lg hover:bg-blue-50 hover:border-blue-500 transition" data-employee="Layla">
+            👤 Layla
+          </button>
+          <button onclick="selectEmployee('Ali Fadlallah')" class="employee-btn p-4 border-2 rounded-lg hover:bg-blue-50 hover:border-blue-500 transition" data-employee="Ali Fadlallah">
+            👤 Ali Fadlallah
+          </button>
+          <button onclick="selectEmployee('Khodor')" class="employee-btn p-4 border-2 rounded-lg hover:bg-blue-50 hover:border-blue-500 transition" data-employee="Khodor">
+            👤 Khodor
+          </button>
+          <button onclick="selectEmployee('Hadi')" class="employee-btn p-4 border-2 rounded-lg hover:bg-blue-50 hover:border-blue-500 transition" data-employee="Hadi">
+            👤 Hadi
+          </button>
+          <button onclick="selectEmployee('Ali Moussa')" class="employee-btn p-4 border-2 rounded-lg hover:bg-blue-50 hover:border-blue-500 transition" data-employee="Ali Moussa">
+            👤 Ali Moussa
+          </button>
+        </div>
+      </div>
+
+      <!-- Selected Employee Display -->
+      <div id="selectedEmployeeDisplay" class="hidden mb-6 p-4 bg-blue-100 rounded-lg border-2 border-blue-500">
+        <h3 class="text-xl font-bold text-blue-900">Selected: <span id="selectedEmployeeName"></span></h3>
+      </div>
+
+      <!-- Week Selector -->
+      <div class="mb-6">
+        <label class="block text-lg font-bold mb-3">Week Starting (Monday):</label>
+        <input type="date" id="weekStartDate" class="w-full md:w-1/2 border-2 rounded-lg p-3 text-lg" onchange="updateWeekDates()">
+      </div>
+
+      <!-- Weekly Time Entry Grid -->
+      <div id="weeklyTimeEntry" class="hidden">
+        <h3 class="text-lg font-bold mb-4">Enter Times for the Week:</h3>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
+          <!-- Monday -->
+          <div class="day-column">
+            <h4 class="font-bold text-center mb-2">📅 Monday</h4>
+            <p class="text-xs text-center text-gray-600 mb-2" id="dateMonday"></p>
+            <label class="block text-xs mb-1">Start:</label>
+            <input type="time" id="startMonday" class="w-full border rounded p-2 mb-2 text-sm">
+            <label class="block text-xs mb-1">End:</label>
+            <input type="time" id="endMonday" class="w-full border rounded p-2 mb-2 text-sm">
+            <label class="block text-xs mb-1">Pause (min):</label>
+            <input type="number" id="pauseMonday" placeholder="30" class="w-full border rounded p-2 text-sm">
+          </div>
+
+          <!-- Tuesday -->
+          <div class="day-column">
+            <h4 class="font-bold text-center mb-2">📅 Tuesday</h4>
+            <p class="text-xs text-center text-gray-600 mb-2" id="dateTuesday"></p>
+            <label class="block text-xs mb-1">Start:</label>
+            <input type="time" id="startTuesday" class="w-full border rounded p-2 mb-2 text-sm">
+            <label class="block text-xs mb-1">End:</label>
+            <input type="time" id="endTuesday" class="w-full border rounded p-2 mb-2 text-sm">
+            <label class="block text-xs mb-1">Pause (min):</label>
+            <input type="number" id="pauseTuesday" placeholder="30" class="w-full border rounded p-2 text-sm">
+          </div>
+
+          <!-- Wednesday -->
+          <div class="day-column">
+            <h4 class="font-bold text-center mb-2">📅 Wednesday</h4>
+            <p class="text-xs text-center text-gray-600 mb-2" id="dateWednesday"></p>
+            <label class="block text-xs mb-1">Start:</label>
+            <input type="time" id="startWednesday" class="w-full border rounded p-2 mb-2 text-sm">
+            <label class="block text-xs mb-1">End:</label>
+            <input type="time" id="endWednesday" class="w-full border rounded p-2 mb-2 text-sm">
+            <label class="block text-xs mb-1">Pause (min):</label>
+            <input type="number" id="pauseWednesday" placeholder="30" class="w-full border rounded p-2 text-sm">
+          </div>
+
+          <!-- Thursday -->
+          <div class="day-column">
+            <h4 class="font-bold text-center mb-2">📅 Thursday</h4>
+            <p class="text-xs text-center text-gray-600 mb-2" id="dateThursday"></p>
+            <label class="block text-xs mb-1">Start:</label>
+            <input type="time" id="startThursday" class="w-full border rounded p-2 mb-2 text-sm">
+            <label class="block text-xs mb-1">End:</label>
+            <input type="time" id="endThursday" class="w-full border rounded p-2 mb-2 text-sm">
+            <label class="block text-xs mb-1">Pause (min):</label>
+            <input type="number" id="pauseThursday" placeholder="30" class="w-full border rounded p-2 text-sm">
+          </div>
+
+          <!-- Friday -->
+          <div class="day-column">
+            <h4 class="font-bold text-center mb-2">📅 Friday</h4>
+            <p class="text-xs text-center text-gray-600 mb-2" id="dateFriday"></p>
+            <label class="block text-xs mb-1">Start:</label>
+            <input type="time" id="startFriday" class="w-full border rounded p-2 mb-2 text-sm">
+            <label class="block text-xs mb-1">End:</label>
+            <input type="time" id="endFriday" class="w-full border rounded p-2 mb-2 text-sm">
+            <label class="block text-xs mb-1">Pause (min):</label>
+            <input type="number" id="pauseFriday" placeholder="30" class="w-full border rounded p-2 text-sm">
+          </div>
+
+          <!-- Saturday -->
+          <div class="day-column">
+            <h4 class="font-bold text-center mb-2">📅 Saturday</h4>
+            <p class="text-xs text-center text-gray-600 mb-2" id="dateSaturday"></p>
+            <label class="block text-xs mb-1">Start:</label>
+            <input type="time" id="startSaturday" class="w-full border rounded p-2 mb-2 text-sm">
+            <label class="block text-xs mb-1">End:</label>
+            <input type="time" id="endSaturday" class="w-full border rounded p-2 mb-2 text-sm">
+            <label class="block text-xs mb-1">Pause (min):</label>
+            <input type="number" id="pauseSaturday" placeholder="30" class="w-full border rounded p-2 text-sm">
+          </div>
+
+          <!-- Sunday -->
+          <div class="day-column">
+            <h4 class="font-bold text-center mb-2">📅 Sunday</h4>
+            <p class="text-xs text-center text-gray-600 mb-2" id="dateSunday"></p>
+            <label class="block text-xs mb-1">Start:</label>
+            <input type="time" id="startSunday" class="w-full border rounded p-2 mb-2 text-sm">
+            <label class="block text-xs mb-1">End:</label>
+            <input type="time" id="endSunday" class="w-full border rounded p-2 mb-2 text-sm">
+            <label class="block text-xs mb-1">Pause (min):</label>
+            <input type="number" id="pauseSunday" placeholder="30" class="w-full border rounded p-2 text-sm">
+          </div>
+        </div>
+
+        <!-- Additional Info -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div>
+            <label class="block text-sm font-semibold mb-2">Project/Task (optional)</label>
+            <input type="text" id="projectName" placeholder="Project name" class="w-full border rounded-lg p-3">
+          </div>
+          <div>
+            <label class="block text-sm font-semibold mb-2">Notes (optional)</label>
+            <textarea id="notes" rows="3" class="w-full border rounded-lg p-3" placeholder="Additional notes..."></textarea>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex gap-4">
+          <button onclick="addWeeklyEntry()" class="flex-1 bg-blue-600 text-white px-6 py-4 rounded-lg shadow hover:bg-blue-700 font-bold text-lg">
+            ✅ Save Week for <span id="saveEmployeeName"></span>
+          </button>
+          <button onclick="clearWeekForm()" class="bg-gray-500 text-white px-6 py-4 rounded-lg shadow hover:bg-gray-600">
+            🔄 Clear
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="flex gap-4 mt-6 pt-6 border-t">
+        <button onclick="downloadWeeklyReport()" class="bg-green-600 text-white px-6 py-3 rounded-lg shadow hover:bg-green-700">
+          📄 Download Weekly Report PDF
+        </button>
+        <button onclick="exportData()" class="bg-gray-600 text-white px-6 py-3 rounded-lg shadow hover:bg-gray-700">
+          📥 Export Backup JSON
+        </button>
+        <button onclick="clearAllData()" class="bg-red-600 text-white px-6 py-3 rounded-lg shadow hover:bg-red-700">
+          🗑️ Clear All Data
+        </button>
+      </div>
+    </div>
+
+    <!-- Filter Section -->
+    <div class="bg-white rounded-lg shadow-lg p-4 mb-6">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div>
+          <label class="block text-sm font-semibold mb-2">Filter by Employee</label>
+          <select id="filterEmployee" onchange="filterData()" class="w-full border rounded-lg p-2">
+            <option value="">All Employees</option>
+            <option value="Ali Hojeij">Ali Hojeij</option>
+            <option value="Layla">Layla</option>
+            <option value="Ali Fadlallah">Ali Fadlallah</option>
+            <option value="Khodor">Khodor</option>
+            <option value="Hadi">Hadi</option>
+            <option value="Ali Moussa">Ali Moussa</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold mb-2">From Date</label>
+          <input type="date" id="filterFromDate" onchange="filterData()" class="w-full border rounded-lg p-2">
+        </div>
+
+        <div>
+          <label class="block text-sm font-semibold mb-2">To Date</label>
+          <input type="date" id="filterToDate" onchange="filterData()" class="w-full border rounded-lg p-2">
+        </div>
+
+        <div class="flex items-end">
+          <button onclick="resetFilters()" class="w-full bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600">
+            🔄 Reset Filters
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+      <!-- 2-Week Period Card with Employee Breakdown -->
+      <div class="bg-white rounded-lg shadow-lg p-6 md:col-span-2">
+        <h3 class="text-gray-600 text-sm font-semibold uppercase mb-3">Total Hours (2 Weeks)</h3>
+        <div class="mb-3">
+          <label class="block text-xs text-gray-500 mb-1">Select Period Start (Monday):</label>
+          <input type="date" id="twoWeekStartCard" class="w-full border rounded p-2 text-sm" onchange="calculate2WeekStatsCard()">
+        </div>
+        <p class="text-4xl font-bold text-blue-600 mb-1" id="total2WeekHoursCard">0.00</p>
+        <p class="text-xs text-gray-500 mb-4" id="dateRangeDisplay">Select start date</p>
+        
+        <!-- Employee Breakdown -->
+        <div class="border-t pt-3">
+          <h4 class="text-xs font-semibold text-gray-600 uppercase mb-2">👥 Employee Hours:</h4>
+          <div class="grid grid-cols-2 gap-2" id="employeeBreakdownCard">
+            <!-- Populated by JavaScript -->
+          </div>
+        </div>
+      </div>
+      
+      <div class="bg-white rounded-lg shadow-lg p-6">
+        <h3 class="text-gray-600 text-sm font-semibold uppercase">Total Hours This Month</h3>
+        <p class="text-4xl font-bold text-green-600 mt-2" id="totalMonthHours">0</p>
+      </div>
+      
+      <div class="bg-white rounded-lg shadow-lg p-6">
+        <h3 class="text-gray-600 text-sm font-semibold uppercase">Total Employees</h3>
+        <p class="text-4xl font-bold text-purple-600 mt-2">6</p>
+      </div>
+    </div>
+
+    <!-- Work Entries Table -->
+    <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+      <div class="px-6 py-4 bg-gray-50 border-b">
+        <h2 class="text-xl font-bold">📊 Work Entries (Real-time from Firebase)</h2>
+      </div>
+      
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-gray-100">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Date</th>
+              <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Employee</th>
+              <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Start</th>
+              <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">End</th>
+              <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Pause</th>
+              <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Hours</th>
+              <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Project</th>
+              <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Notes</th>
+              <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="entriesTable" class="divide-y divide-gray-200">
+            <tr><td colspan="9" class="px-6 py-8 text-center text-gray-500">🔄 Loading data from Firebase...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Employee Summary -->
+    <div class="mt-6 bg-white rounded-lg shadow-lg p-6">
+      <h2 class="text-xl font-bold mb-4">👥 Employee Summary</h2>
+      <div id="employeeSummary" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <!-- Populated by JavaScript -->
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <footer class="bg-gray-800 text-white text-center py-6 mt-12">
+    <p>&copy; 2025 CIF Canada. All rights reserved.</p>
+    <p class="text-sm text-gray-400 mt-2">Work Time Tracking System - Powered by Firebase</p>
+  </footer>
+
+  <script src="app-firebase.js"></script>
+</body>
+</html>
