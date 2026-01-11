@@ -5,21 +5,14 @@
 // Get it from: Firebase Console → Project Settings → Your Apps → Web App
 
 const firebaseConfig = {
-
-  apiKey: "AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-
+  apiKey: "AIzaSyDpSTFCPev29ZejLfW5qTLvYzCiBxygxuM",
   authDomain: "cif-canada-tracker.firebaseapp.com",
-
   databaseURL: "https://cif-canada-tracker-default-rtdb.firebaseio.com",
-
   projectId: "cif-canada-tracker",
-
-  storageBucket: "cif-canada-tracker.appspot.com",
-
-  messagingSenderId: "123456789012",
-
-  appId: "1:123456789012:web:abcdef1234567890"
-
+  storageBucket: "cif-canada-tracker.firebasestorage.app",
+  messagingSenderId: "893941722734",
+  appId: "1:893941722734:web:be7159692c395f3d96007f",
+  measurementId: "G-434QE6952Q"
 };
 
 // ========================================
